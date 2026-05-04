@@ -3218,8 +3218,10 @@ export class WYSIWYG {
                             blockElement = embedElement;
                             console.log("4a. Updated to embedElement:", blockElement);
                         }
-                        // 如果是容器块（list），需要修正 blockElement 为最近的 li 元素，而不是 list 容器
-                        if (blockElement.classList.contains("list")) {
+
+                        let toFirstChild = false;
+                        // 如果是列表块（list/li），需要修正 blockElement 为最近的 li 元素，而不是 list 容器
+                        if (blockElement.classList.contains("list") || blockElement.classList.contains("li")) {
                             console.log("5. blockElement is list container, finding nearest li");
                             const getNearestLi = (container: Element, clientY: number) => {
                                 const liElements = container.querySelectorAll(":scope > .li");
@@ -3253,6 +3255,7 @@ export class WYSIWYG {
                                         // 命中具体 li 或其他块
                                         console.log("5e. elementFromPoint hit block, using it");
                                         blockElement = preciseBlock as HTMLElement;
+                                        toFirstChild = true; // 命中 li 但是 li 可能有子项，此时若 toStart=false，应该聚焦到当前li，而不是他的最后一个子项
                                     }
                                 }
                             } else {
@@ -3268,8 +3271,8 @@ export class WYSIWYG {
 
                         console.log("6. Final blockElement:", blockElement, "| className:", blockElement?.className, "| data-type:", blockElement?.getAttribute("data-type"));
                         const toStart = event.clientX < rect.left + parseInt(this.element.style.paddingLeft);
-                        console.log("7. toStart:", toStart, "| event.clientX:", event.clientX, "| rect.left:", rect.left, "| paddingLeft:", this.element.style.paddingLeft);
-                        newRange = focusBlock(blockElement, undefined, toStart) || newRange;
+                        console.log("7. toStart:", toStart, "| event.clientX:", event.clientX, "| rect.left:", rect.left, "| paddingLeft:", this.element.style.paddingLeft, "| toFirstChild:", toFirstChild);
+                        newRange = focusBlock(blockElement, undefined, toStart, toFirstChild) || newRange;
                         console.log("8. newRange set:", newRange);
                         if (protyle.options.render.breadcrumb) {
                             protyle.breadcrumb.render(protyle, false, blockElement);

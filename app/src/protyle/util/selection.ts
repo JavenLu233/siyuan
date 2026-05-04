@@ -639,7 +639,7 @@ export const focusByRange = (range: Range) => {
     selection.addRange(range);
 };
 
-export const focusBlock = (element: Element, parentElement?: HTMLElement, toStart = true): false | Range => {
+export const focusBlock = (element: Element, parentElement?: HTMLElement, toStart = true, toFirstChild = false): false | Range => {
     if (!element) {
         return false;
     }
@@ -704,7 +704,13 @@ export const focusBlock = (element: Element, parentElement?: HTMLElement, toStar
     if (toStart) {
         cursorElement = getContenteditableElement(element);
     } else {
-        Array.from(element.querySelectorAll('[contenteditable="true"]')).reverse().find(item => {
+        
+        let items = Array.from(element.querySelectorAll('[contenteditable="true"]'));
+        // 有时候toStart=false，但是需要聚焦到第一个可编辑项，而不是最后一个可编辑项
+        if (!toFirstChild) {
+            items = items.reverse();
+        }
+        items.find(item => {
             if (item.getBoundingClientRect().width > 0) {
                 cursorElement = item;
                 return true;
