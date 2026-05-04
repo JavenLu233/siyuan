@@ -3198,25 +3198,85 @@ export class WYSIWYG {
                 // 选中后，在选中的文字上点击需等待 range 更新
                 let newRange = getEditorRange(this.element);
                 // 点击两侧或间隙导致光标跳转到开头 https://github.com/siyuan-note/siyuan/issues/16179
+                console.log("=== Issue #16179 Debug Start ===");
+                console.log("1. event.target:", event.target, "| className:", event.target?.className);
                 if (hasClosestBlock(event.target) !== hasClosestBlock(newRange.startContainer) &&
                     this.element.querySelector("[data-node-id]")?.contains(newRange.startContainer)) {
+                    console.log("2. Condition passed, entering矫正逻辑");
                     const rect = this.element.getBoundingClientRect();
                     let rangeElement = document.elementFromPoint(rect.left + rect.width / 2, event.clientY);
+                    console.log("3. First elementFromPoint:", rangeElement, "| className:", rangeElement?.className, "| data-type:", rangeElement?.getAttribute("data-type"));
                     if (rangeElement === this.element) {
                         rangeElement = document.elementFromPoint(rect.left + rect.width / 2, event.clientY + 8);
+                        console.log("3a. Re-fetched elementFromPoint:", rangeElement, "| className:", rangeElement?.className);
                     }
                     let blockElement = hasClosestBlock(rangeElement);
+                    console.log("4. blockElement from hasClosestBlock:", blockElement, "| className:", blockElement?.className, "| data-type:", blockElement?.getAttribute("data-type"));
                     if (blockElement) {
                         const embedElement = isInEmbedBlock(blockElement);
                         if (embedElement) {
                             blockElement = embedElement;
+                            console.log("4a. Updated to embedElement:", blockElement);
                         }
-                        newRange = focusBlock(blockElement, undefined, event.clientX < rect.left + parseInt(this.element.style.paddingLeft)) || newRange;
+                        // 如果是容器块（list），需要修正 blockElement 为最近的 li 元素，而不是 list 容器
+                        if (blockElement.classList.contains("list")) {
+                            console.log("5. blockElement is list container, finding nearest li");
+                            const getNearestLi = (container: Element, clientY: number) => {
+                                const liElements = container.querySelectorAll(":scope > .li");
+                                let nearestLi: Element | null = null;
+                                let nearestDistance = Infinity;
+                                liElements.forEach(li => {
+                                    const rect = li.getBoundingClientRect();
+                                    const distance = Math.abs(rect.top + rect.height / 2 - clientY);
+                                    if (distance < nearestDistance) {
+                                        nearestDistance = distance;
+                                        nearestLi = li;
+                                    }
+                                });
+                                return nearestLi;
+                            };
+                            const preciseElement = document.elementFromPoint(event.clientX, event.clientY);
+                            console.log("5a. preciseElement from elementFromPoint:", preciseElement?.className, "| data-type:", preciseElement?.getAttribute("data-type"));
+                            if (preciseElement && preciseElement !== this.element) {
+                                const preciseBlock = hasClosestBlock(preciseElement);
+                                console.log("5b. preciseBlock:", preciseBlock?.className, "| data-type:", preciseBlock?.getAttribute("data-type"));
+                                if (preciseBlock) {
+                                    if (preciseBlock.classList.contains("list")) {
+                                        // 命中 list 容器空白区，找最近 li（这里解决的是点击右侧的列表项间隙，也就是鼠标位于列表内容之中的情况）
+                                        console.log("5c. elementFromPoint hit list, using nearestLi");
+                                        const nearestLi = getNearestLi(blockElement, event.clientY);
+                                        if (nearestLi) {
+                                            console.log("5d. Found nearest li:", nearestLi);
+                                            blockElement = nearestLi as HTMLElement;
+                                        }
+                                    } else {
+                                        // 命中具体 li 或其他块
+                                        console.log("5e. elementFromPoint hit block, using it");
+                                        blockElement = preciseBlock as HTMLElement;
+                                    }
+                                }
+                            } else {
+                                // 命中空白区域或 wysiwyg element，回退到 nearestLi（这里解决的是点击左侧的列表项间隙，也就是鼠标位于列表内容左侧的空白区的情况）
+                                console.log("5f. elementFromPoint returned null/this.element, using nearestLi");
+                                const nearestLi = getNearestLi(blockElement, event.clientY);
+                                if (nearestLi) {
+                                    console.log("5g. Found nearest li:", nearestLi);
+                                    blockElement = nearestLi as HTMLElement;
+                                }
+                            }
+                        }
+
+                        console.log("6. Final blockElement:", blockElement, "| className:", blockElement?.className, "| data-type:", blockElement?.getAttribute("data-type"));
+                        const toStart = event.clientX < rect.left + parseInt(this.element.style.paddingLeft);
+                        console.log("7. toStart:", toStart, "| event.clientX:", event.clientX, "| rect.left:", rect.left, "| paddingLeft:", this.element.style.paddingLeft);
+                        newRange = focusBlock(blockElement, undefined, toStart) || newRange;
+                        console.log("8. newRange set:", newRange);
                         if (protyle.options.render.breadcrumb) {
                             protyle.breadcrumb.render(protyle, false, blockElement);
                         }
                     }
                 }
+                console.log("=== Issue #16179 Debug End ===");
                 // https://github.com/siyuan-note/siyuan/issues/10357
                 const attrElement = hasClosestByClassName(newRange.endContainer, "protyle-attr");
                 if (attrElement) {
